@@ -12,7 +12,23 @@ def db_clear(app):
     app.db.drop_tables(reversed(MODELS), safe=True)
 
 
-# creating db tables
 if __name__ == '__main__':
+    import peewee
+    import time
     from backend.app import app
-    db_init(app)
+
+    CONNECTIONS_TRIES_LIMIT = 15
+    counter = 0
+    while True:
+        try:
+            db_init(app)
+        except peewee.DatabaseError:
+            print('Waiting for database...')
+            counter += 1
+            if counter == CONNECTIONS_TRIES_LIMIT:
+                print('Database is not available.')
+                break
+            time.sleep(1)
+        else:
+            break
+
