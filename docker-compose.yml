@@ -1,0 +1,21 @@
+version: "3.7"
+
+services:
+  postgres:
+    container_name: wallets_db
+    image: "postgres:9.6.8-alpine"
+    env_file: .env
+    volumes:
+      - ./entrypoint_db.sh:/docker-entrypoint-initdb.d/entrypoint.sh
+
+  web:
+    container_name: wallets_web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+    env_file: .env
+    ports:
+      - "9000:9000"
+    entrypoint: sh entrypoint.sh
