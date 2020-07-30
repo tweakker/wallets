@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 from aiohttp import web
 from aiohttp_validate import validate
 
+from backend.db import database
 from backend.logger import logger
 from backend.types import JSON
 from backend.settings import DOUBLE_TRANSACTION_CHECK_TIMEOUT
@@ -20,10 +21,13 @@ from .schemas import TRANSFER_SCHEMA, WALLET_TOP_UP_SCHEMA
 class BaseWalletView(web.View):
     """View for all wallets views."""
 
-    async def get_wallet(self, user, currency) -> Wallet:
+    async def get_wallet(self, user, currency, for_update=False) -> Wallet:
         """Return wallet object for user_id."""
         try:
-            return Wallet.get(user=user, currency=currency)
+            wallet = Wallet.select().where(Wallet.user==user, Wallet.currency==currency)
+            if for_update:
+                wallet = wallet.for_update()
+            return wallet.get()
         except Wallet.DoesNotExist:
             # if trying to top-up wallet with wrong currency
             raise web.HTTPBadRequest(text='Wallet for that currency does not exist.')
@@ -78,18 +82,22 @@ class TransferView(BaseWalletView):
         data = await self.data_validate(data, request)
         currency = data['currency']
         value = data['value']
-        wallet_from = await self.get_wallet(request.user, currency=currency)
         wallet_to = await self.get_wallet_from_user_name(data['to_name'], currency=currency)
-        if await self.is_double(trx_from=wallet_from, trx_to=wallet_to, value=value):
-            logger.info(f'Double transfer requests: '
-                        f'from: {request.user.name}, to: {data["to_name"]}, value: {value}, currency: {currency}')
-            raise web.HTTPOk()
-        try:
-            await wallet_from.make_transfer(wallet_to, value)
-        except (BalanceTooLow, WrongCurrency, WrongAmount) as e:
-            raise web.HTTPBadRequest(text=str(e))
-        except WalletOperationException as e:
-            raise web.HTTPInternalServerError(text=str(e))
+        with database.atomic():
+            # block transactions with FOR UPDATE
+            wallet_from = await self.get_wallet(request.user, currency=currency, for_update=True)
+            # check doubles
+            if await self.is_double(trx_from=wallet_from, trx_to=wallet_to, value=value):
+                logger.info(f'Double transfer requests: '
+                            f'from: {request.user.name}, to: {data["to_name"]}, value: {value}, currency: {currency}')
+                # if it is double send answer like transaction success
+                raise web.HTTPOk()
+            try:
+                wallet_from.make_transfer(wallet_to, value)
+            except (BalanceTooLow, WrongCurrency, WrongAmount) as e:
+                raise web.HTTPBadRequest(text=str(e))
+            except WalletOperationException as e:
+                raise web.HTTPInternalServerError(text=str(e))
         raise web.HTTPOk()
 
 
@@ -102,15 +110,19 @@ class TopUpWallet(BaseWalletView):
         """Update wallet balance and create new row in Transactions."""
         data = await self.data_validate(data, request)
         value, currency = data['value'], data['currency']
-        wallet = await self.get_wallet(request.user.id, currency)
-        if await self.is_double(trx_from=None, trx_to=wallet, value=value):
-            logger.info(f'Double top up requests: '
-                        f'to: {request.user.name}, value: {value}, currency: {currency}')
-            raise web.HTTPOk()
-        try:
-            await wallet.top_up(value)
-        except (WrongCurrency, WrongAmount) as e:
-            raise web.HTTPBadRequest(text=str(e))
-        except WalletOperationException as e:
-            raise web.HTTPInternalServerError(text=str(e))
+        with database.atomic():
+            # block transactions with FOR UPDATE
+            wallet = await self.get_wallet(request.user.id, currency, for_update=True)
+            # check doubles
+            if await self.is_double(trx_from=None, trx_to=wallet, value=value):
+                logger.info(f'Double top up requests: '
+                            f'to: {request.user.name}, value: {value}, currency: {currency}')
+                # if it is double send answer like transaction success
+                raise web.HTTPOk()
+            try:
+                wallet.top_up(value)
+            except (WrongCurrency, WrongAmount) as e:
+                raise web.HTTPBadRequest(text=str(e))
+            except WalletOperationException as e:
+                raise web.HTTPInternalServerError(text=str(e))
         raise web.HTTPOk()

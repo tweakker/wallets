@@ -17,15 +17,6 @@ def create_app() -> web.Application:
 
     _app = web.Application(middlewares=middlewares)
 
-    database.init(
-        settings.DB_NAME,
-        user=settings.DB_USER,
-        password=settings.DB_PASSWORD,
-        host=settings.DB_HOST,
-    )
-
-    _app.db = database
-
     # add routes
     for route in routes:
         _app.router.add_route(**route)

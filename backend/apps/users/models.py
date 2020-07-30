@@ -17,7 +17,7 @@ class User(BaseModel):
         return bool(exists)
 
     @classmethod
-    async def create_user(cls, *args, **kwargs) -> 'User':
+    def create_user(cls, *args, **kwargs) -> 'User':
         """Async create user object."""
         kwargs["password"] = hashed_password(kwargs["password"])
         obj = cls.create(*args, **kwargs)

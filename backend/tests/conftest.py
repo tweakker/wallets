@@ -5,6 +5,7 @@ import pytest
 
 from backend import settings
 from backend.app import create_app
+from backend.db import database
 from backend.apps.users.models import User
 from backend.apps.wallets.models import Wallet
 from backend.apps.wallets.enums import USD
@@ -12,8 +13,7 @@ from backend.db_init import db_init, db_clear
 
 
 @pytest.fixture
-async def app(monkeypatch):
-    monkeypatch.setattr(settings, 'DB_NAME', settings.TEST_DATABASE_NAME)
+async def app():
     return create_app()
 
 
@@ -23,9 +23,10 @@ async def cli(app, aiohttp_client):
 
 
 @pytest.fixture(autouse=True)
-async def db_initialize(app):
-    db_clear(app)
-    db_init(app)
+async def db(monkeypatch):
+    monkeypatch.setattr(database, 'database', settings.TEST_DATABASE_NAME)
+    db_clear()
+    db_init()
     yield
 
 
@@ -42,7 +43,7 @@ def user_factory():
     async def factory(**kwargs) -> User:
         kwargs['name'] = kwargs.get('name', name_generator())
         kwargs['password'] = kwargs.get('password', pswd_generator())
-        return await User.create_user(**kwargs)
+        return User.create_user(**kwargs)
 
     return factory
 

@@ -17,17 +17,16 @@ class Wallet(BaseModel):
     balance = peewee.DecimalField(max_digits=12, decimal_places=2, default=Decimal(0), null=True)
     currency = peewee.CharField(max_length=4, choices=CURRENCIES, default=USD, index=True)
 
-    async def top_up(self, value: Decimal):
+    @database.atomic()
+    def top_up(self, value: Decimal):
         """Top up wallet balance."""
         cls = self.__class__
-        with database.atomic() as transaction:
-            try:
-                cls.update(balance=cls.balance + value).where(cls.id == self.id).execute()
-                Transaction.create(trx_to=self, value=value, currency=self.currency)
-            except peewee.DatabaseError:
-                transaction.rollback()
-                logger.exception(f'Rollback from {self} top up transaction.')
-                raise WalletOperationException
+        try:
+            cls.update(balance=cls.balance + value).where(cls.id == self.id).execute()
+            Transaction.create(trx_to=self, value=value, currency=self.currency)
+        except peewee.DatabaseError:
+            logger.exception(f'Error while top up transaction: {self}.')
+            raise WalletOperationException
 
     def _transfer_prevalidate(self, _to, value):
         """Validate data before transfer."""
@@ -38,26 +37,23 @@ class Wallet(BaseModel):
         if _to.currency != self.currency:
             raise WrongCurrency
 
-    async def make_transfer(self, _to: 'Wallet', value: Decimal):
+    @database.atomic()
+    def make_transfer(self, _to: 'Wallet', value: Decimal):
         """Send money to another wallet."""
         cls = self.__class__
         self._transfer_prevalidate(_to, value)
-        with database.atomic() as transaction:
-            try:
-                cls.update(balance=cls.balance - value).where(cls.id == self.id).execute()
-                _updated = await self.refresh()
-                if _updated.balance < 0:
-                    # if another transaction changed balance before and balance is to low now
-                    # rollback it
-                    transaction.rollback()
-                    logger.exception(f'Rollback from {self} transfer transaction: balance lower than 0.')
-                    raise BalanceTooLow
-                cls.update(balance=cls.balance + value).where(cls.id == _to.id).execute()
-                Transaction.create(trx_from=self, trx_to=_to, value=value, currency=self.currency)
-            except peewee.DatabaseError:
-                transaction.rollback()
-                logger.exception(f'Rollback from {self} transfer transaction.')
-                raise WalletOperationException
+        try:
+            cls.update(balance=cls.balance - value).where(cls.id == self.id).execute()
+            _updated = self.refresh()
+            if _updated.balance < 0:
+                # if another transaction changed balance before and balance is to low now
+                logger.exception(f'Error while transfer transaction {self}: balance lower than 0.')
+                raise BalanceTooLow
+            cls.update(balance=cls.balance + value).where(cls.id == _to.id).execute()
+            Transaction.create(trx_from=self, trx_to=_to, value=value, currency=self.currency)
+        except peewee.DatabaseError:
+            logger.exception(f'Error while transfer transaction {self}')
+            raise WalletOperationException
 
 
 class Transaction(BaseModel):

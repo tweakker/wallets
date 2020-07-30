@@ -13,6 +13,6 @@ SECRET_KEY = 'GkZup9wI8zXDTKnviqOk'
 DEBUG = False
 
 # time in seconds between doubles transaction are ignored
-DOUBLE_TRANSACTION_CHECK_TIMEOUT = 10
+DOUBLE_TRANSACTION_CHECK_TIMEOUT = 5
 
 

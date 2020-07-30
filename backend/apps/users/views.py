@@ -22,7 +22,7 @@ async def register(data, request):
         raise web.HTTPConflict()
     with database.atomic() as transaction:
         try:
-            new_user = await User.create_user(name=data['name'], password=data['password'])
+            new_user = User.create_user(name=data['name'], password=data['password'])
             Wallet.create(user=new_user)
         except peewee.DatabaseError:
             transaction.rollback()

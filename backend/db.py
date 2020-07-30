@@ -1,7 +1,15 @@
 import peewee
 
-# init database later in create_app
-database = peewee.PostgresqlDatabase(None)
+from . import settings
+
+
+database = peewee.PostgresqlDatabase(
+    settings.DB_NAME,
+    user=settings.DB_USER,
+    password=settings.DB_PASSWORD,
+    host=settings.DB_HOST,
+    autorollback=True,
+)
 
 
 class BaseModel(peewee.Model):
@@ -10,6 +18,6 @@ class BaseModel(peewee.Model):
     class Meta:
         database = database
 
-    async def refresh(self):
+    def refresh(self):
         """Refresh object from db."""
         return type(self).get_by_id(self._pk)

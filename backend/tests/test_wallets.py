@@ -37,7 +37,7 @@ class TestTopUp:
             'currency': 'USD',
         })
         assert resp.status == 200
-        wallet = await wallet.refresh()
+        wallet = wallet.refresh()
         assert wallet.balance == Decimal('10.21')
 
     async def test_cant_top_up_wallet_if_currency_wrong(self, wallet):
@@ -48,7 +48,7 @@ class TestTopUp:
             'currency': 'RUB',
         })
         assert resp.status == 400
-        wallet = await wallet.refresh()
+        wallet = wallet.refresh()
         assert wallet.balance == 0
 
     async def test_double_request_top_up_only_once(self, wallet):
@@ -62,7 +62,7 @@ class TestTopUp:
         resp_1 = await self.top_up_wallet(payload)
         resp_2 = await self.top_up_wallet(payload)
         assert resp_1.status == resp_2.status == 200
-        wallet = await wallet.refresh()
+        wallet = wallet.refresh()
         # only one transaction was create
         assert len(Transaction.select().where(
             Transaction.trx_from == None,
@@ -113,9 +113,9 @@ class TestTransfers:
         resp = await self.send_money(payload)
         assert resp.status == 200
         # balances changed
-        wallet_from = await wallet_from.refresh()
+        wallet_from = wallet_from.refresh()
         assert wallet_from.balance == old_balance_from - value
-        wallet_to = await wallet_to.refresh()
+        wallet_to = wallet_to.refresh()
         assert wallet_to.balance == old_balance_to + value
         # transaction created
         try:
@@ -162,7 +162,7 @@ class TestTransfers:
             Transaction.value == value,
         )) == 1
         old_balance_from, old_balance_to = wallet_from.balance, wallet_to.balance
-        wallet_from, wallet_to = await wallet_from.refresh(), await wallet_to.refresh()
+        wallet_from, wallet_to = wallet_from.refresh(), wallet_to.refresh()
         # balances changed like only one request was
         assert wallet_from.balance == old_balance_from - value
         assert wallet_to.balance == old_balance_to + value
@@ -193,12 +193,12 @@ class TestTransfers:
         assert resp_2.status == 400
         assert await resp_2.text() == BalanceTooLow.text
         # wallet_from balance not lower then 0
-        wallet_from = await wallet_from.refresh()
+        wallet_from = wallet_from.refresh()
         assert wallet_from.balance == 0
         # first wallet balance updated
-        wallet_to = await wallet_to.refresh()
+        wallet_to = wallet_to.refresh()
         assert wallet_to.balance == 5
         # second wallet balance not changed
-        wallet_to_2 = await wallet_to_2.refresh()
+        wallet_to_2 = wallet_to_2.refresh()
         assert wallet_to_2.balance == 0
 
