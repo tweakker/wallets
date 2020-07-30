@@ -14,7 +14,7 @@ from backend.apps.wallets.enums import CURRENCIES
 from backend.apps.wallets.models import Wallet, Transaction
 
 from .exceptions import *
-from .schemas import TRANSACTION_CREATE_SCHEMA, WALLET_TOP_UP_SCHEMA
+from .schemas import TRANSFER_SCHEMA, WALLET_TOP_UP_SCHEMA
 
 
 class BaseWalletView(web.View):
@@ -72,7 +72,7 @@ class TransferView(BaseWalletView):
         return data
 
     @login_required
-    @validate(request_schema=TRANSACTION_CREATE_SCHEMA)
+    @validate(request_schema=TRANSFER_SCHEMA)
     async def post(self, data, request):
         """Send money to another user by users` name."""
         data = await self.data_validate(data, request)

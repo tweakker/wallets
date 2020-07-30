@@ -7,7 +7,7 @@ WALLET_TOP_UP_SCHEMA = {
     "required": ["value", "currency"],
 }
 
-TRANSACTION_CREATE_SCHEMA = {
+TRANSFER_SCHEMA = {
     "type": "object",
     "properties": {
         "to_name": {"type": "string"},
