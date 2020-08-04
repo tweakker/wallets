@@ -43,9 +43,11 @@ class Wallet(BaseModel):
         cls = self.__class__
         self._transfer_prevalidate(_to, value)
         try:
-            cls.update(balance=cls.balance - value).where(cls.id == self.id).execute()
-            _updated = self.refresh()
-            if _updated.balance < 0:
+            _updated = cls.update(balance=cls.balance - value)\
+                .where(cls.id == self.id)\
+                .returning(cls.balance)\
+                .execute()
+            if _updated[0].balance < 0:
                 # if another transaction changed balance before and balance is to low now
                 logger.exception(f'Error while transfer transaction {self}: balance lower than 0.')
                 raise BalanceTooLow
