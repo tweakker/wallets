@@ -31,6 +31,7 @@ POST /api/wallet/top-up/
 {
     'value': str  // сумма пополнения,
     'currency': str  // валюта пополнения, доступно только значение 'USD'
+    'trx_code': str  // код идемпотентности
 }
 ```
 
@@ -41,5 +42,6 @@ POST /api/wallet/transfer/
     'name_to': str  // имя юзера в системе
     'value': str  // сумма перевода
     'currency': str  // валюта перевода, доступна только 'USD'
+    'trx_code': str  // код идемпотентности
 }
 ```
