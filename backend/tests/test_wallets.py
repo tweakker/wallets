@@ -26,6 +26,7 @@ class TestTopUp:
         return wallet
 
     async def top_up_wallet(self, data):
+        data['trx_code'] = 'idempotency_code_1'
         resp = await self.cli.post(self.url, json=data)
         return resp
 
@@ -98,6 +99,7 @@ class TestTransfers:
 
     async def send_money(self, data):
         data['currency'] = data.get('currency', 'USD')
+        data['trx_code'] = data.get('trx_code', 'idempotency_code_1')
         resp = await self.cli.post(self.url, json=data)
         return resp
 
@@ -178,10 +180,12 @@ class TestTransfers:
         request_1 = self.send_money({
             'to_name': wallet_to.user.name,
             'value': '5',
+            'trx_code': 'code_1',
         })
         request_2 = self.send_money({
             'to_name': wallet_to_2.user.name,
             'value': '5',
+            'trx_code': 'code_2',
         })
         # mock prevalidation
         with mock.patch('backend.apps.wallets.models.Wallet._transfer_prevalidate'):

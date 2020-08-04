@@ -17,7 +17,7 @@ if __name__ == '__main__':
     import peewee
     import time
 
-    CONNECTIONS_TRIES_LIMIT = 15
+    CONNECTIONS_TRIES_LIMIT = 30
     counter = 0
     while True:
         try:

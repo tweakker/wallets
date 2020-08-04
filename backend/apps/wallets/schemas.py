@@ -3,6 +3,7 @@ WALLET_TOP_UP_SCHEMA = {
     "properties": {
         "value": {"type": "string"},
         "currency": {"type": "string"},
+        "trx_code": {"type": "string"},
     },
     "required": ["value", "currency"],
 }
@@ -13,6 +14,7 @@ TRANSFER_SCHEMA = {
         "to_name": {"type": "string"},
         "value": {"type": "string"},
         "currency": {"type": "string"},
+        "trx_code": {"type": "string"},
     },
     "required": ["to_name", "value", "currency"],
 }

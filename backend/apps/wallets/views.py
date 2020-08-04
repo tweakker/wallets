@@ -1,5 +1,3 @@
-import datetime
-import typing as t
 from decimal import Decimal, InvalidOperation
 
 from aiohttp import web
@@ -8,7 +6,6 @@ from aiohttp_validate import validate
 from backend.db import database
 from backend.logger import logger
 from backend.types import JSON
-from backend.settings import DOUBLE_TRANSACTION_CHECK_TIMEOUT
 from backend.apps.users.helpers import login_required
 from backend.apps.users.models import User
 from backend.apps.wallets.enums import CURRENCIES
@@ -45,16 +42,10 @@ class BaseWalletView(web.View):
             raise web.HTTPBadRequest(text='Bad currency.')
         return data
 
-    async def is_double(self, trx_from: t.Optional[Wallet], trx_to: Wallet, **kwargs) -> bool:
+    async def is_double(self, trx_code) -> bool:
         """Check if transaction was created recently."""
-        recently = datetime.datetime.now() - datetime.timedelta(seconds=DOUBLE_TRANSACTION_CHECK_TIMEOUT)
-        kwargs_conditions = [(getattr(Transaction, k) == v) for k, v in kwargs.items()]
         return Transaction.select()\
-            .where(
-                Transaction.trx_from == trx_from,
-                Transaction.trx_to == trx_to,
-                *kwargs_conditions)\
-            .where(Transaction.datetime >= recently)\
+            .where(Transaction.trx_code == trx_code)\
             .exists()
 
 
@@ -80,20 +71,19 @@ class TransferView(BaseWalletView):
     async def post(self, data, request):
         """Send money to another user by users` name."""
         data = await self.data_validate(data, request)
-        currency = data['currency']
-        value = data['value']
+        value, currency, trx_code = data['value'], data['currency'], data['trx_code']
         wallet_to = await self.get_wallet_from_user_name(data['to_name'], currency=currency)
         with database.atomic():
             # block transactions with FOR UPDATE
             wallet_from = await self.get_wallet(request.user, currency=currency, for_update=True)
             # check doubles
-            if await self.is_double(trx_from=wallet_from, trx_to=wallet_to, value=value):
+            if await self.is_double(trx_code):
                 logger.info(f'Double transfer requests: '
                             f'from: {request.user.name}, to: {data["to_name"]}, value: {value}, currency: {currency}')
                 # if it is double send answer like transaction success
                 raise web.HTTPOk()
             try:
-                wallet_from.make_transfer(wallet_to, value)
+                wallet_from.make_transfer(wallet_to, value, trx_code)
             except (BalanceTooLow, WrongCurrency, WrongAmount) as e:
                 raise web.HTTPBadRequest(text=str(e))
             except WalletOperationException as e:
@@ -109,18 +99,18 @@ class TopUpWallet(BaseWalletView):
     async def post(self, data, request):
         """Update wallet balance and create new row in Transactions."""
         data = await self.data_validate(data, request)
-        value, currency = data['value'], data['currency']
+        value, currency, trx_code = data['value'], data['currency'], data['trx_code']
         with database.atomic():
             # block transactions with FOR UPDATE
             wallet = await self.get_wallet(request.user.id, currency, for_update=True)
             # check doubles
-            if await self.is_double(trx_from=None, trx_to=wallet, value=value):
+            if await self.is_double(trx_code):
                 logger.info(f'Double top up requests: '
                             f'to: {request.user.name}, value: {value}, currency: {currency}')
                 # if it is double send answer like transaction success
                 raise web.HTTPOk()
             try:
-                wallet.top_up(value)
+                wallet.top_up(value, trx_code=trx_code)
             except (WrongCurrency, WrongAmount) as e:
                 raise web.HTTPBadRequest(text=str(e))
             except WalletOperationException as e:

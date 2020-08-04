@@ -18,12 +18,12 @@ class Wallet(BaseModel):
     currency = peewee.CharField(max_length=4, choices=CURRENCIES, default=USD, index=True)
 
     @database.atomic()
-    def top_up(self, value: Decimal):
+    def top_up(self, value: Decimal, trx_code: str):
         """Top up wallet balance."""
         cls = self.__class__
         try:
             cls.update(balance=cls.balance + value).where(cls.id == self.id).execute()
-            Transaction.create(trx_to=self, value=value, currency=self.currency)
+            Transaction.create(trx_to=self, value=value, currency=self.currency, trx_code=trx_code)
         except peewee.DatabaseError:
             logger.exception(f'Error while top up transaction: {self}.')
             raise WalletOperationException
@@ -38,7 +38,7 @@ class Wallet(BaseModel):
             raise WrongCurrency
 
     @database.atomic()
-    def make_transfer(self, _to: 'Wallet', value: Decimal):
+    def make_transfer(self, _to: 'Wallet', value: Decimal, trx_code: str):
         """Send money to another wallet."""
         cls = self.__class__
         self._transfer_prevalidate(_to, value)
@@ -50,7 +50,7 @@ class Wallet(BaseModel):
                 logger.exception(f'Error while transfer transaction {self}: balance lower than 0.')
                 raise BalanceTooLow
             cls.update(balance=cls.balance + value).where(cls.id == _to.id).execute()
-            Transaction.create(trx_from=self, trx_to=_to, value=value, currency=self.currency)
+            Transaction.create(trx_from=self, trx_to=_to, value=value, currency=self.currency, trx_code=trx_code)
         except peewee.DatabaseError:
             logger.exception(f'Error while transfer transaction {self}')
             raise WalletOperationException
@@ -66,3 +66,4 @@ class Transaction(BaseModel):
     trx_to = peewee.ForeignKeyField(Wallet, index=True)
     value = peewee.DecimalField(max_digits=12, decimal_places=2)
     datetime = peewee.DateTimeField(default=datetime.datetime.now, index=True)
+    trx_code = peewee.CharField(max_length=64, unique=True)  # using for idempotency
